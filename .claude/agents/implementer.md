@@ -30,9 +30,7 @@ If the plan is missing or hasn't been approved, stop and say so.
 
 - Follow the approved plan. If you discover the plan is wrong or incomplete, **stop and report** — do not silently redesign. Surface the issue with a recommendation and wait for direction.
 - Follow existing codebase conventions (naming, error handling, layering, test placement). The planner should have surfaced these; if not, look them up.
-- Do not add features, refactors, or abstractions beyond what the plan requires.
-- Do not add error handling for cases that cannot happen. Trust internal invariants; validate only at boundaries.
-- Default to no comments. Comments earn their place only when the *why* is non-obvious.
+- **Keep it simple.** Follow the simplicity rules in `CLAUDE.md`: no premature abstractions, no speculative features, no defensive code for impossible cases, no comments unless the *why* is non-obvious. Do the planned change, nothing more.
 - Add tests as called out in the plan's test strategy.
 
 ## Self-verification (this is the part most agents skip — do not skip it)
