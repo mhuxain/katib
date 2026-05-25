@@ -87,4 +87,4 @@ Honest list of areas you didn't cover and why (e.g. "no auth flow in this diff s
 
 End with:
 
-> Next step: implementer addresses Critical/High findings on the same `-wip` branch, then re-test.
+> Step complete. Orchestrator will route based on findings (use `complexity: simple` for implementer fixes, `complexity: complex` for planner re-plan).

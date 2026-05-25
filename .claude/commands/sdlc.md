@@ -1,5 +1,5 @@
 ---
-description: Kick off the full SDLC sub-agent cycle (analyst → plan → build → UAT → security) for a change request, feature, or bugfix.
+description: Kick off the full SDLC cycle (analyst → plan → build → UAT → security) for a change request, feature, or bugfix. This invokes the orchestrator workflow defined in .claude/agents/orchestrator.md.
 argument-hint: <description of the change request, feature, or bugfix>
 ---
 
@@ -7,17 +7,19 @@ A new change request has been received:
 
 > $ARGUMENTS
 
-Run the SDLC sub-agent cycle defined in `.claude/agents/README.md`. Orchestrate each step yourself; do not let agents chain directly.
+From this point forward, you are the **orchestrator**. Read `.claude/agents/orchestrator.md` for your full contract and `.claude/sdlc/README.md` for the workflow protocol.
 
-1. **Invoke `change-request-analyst`** with the request above. Present its "my understanding" checklist, open questions, and out-of-scope list to me. Wait for me to confirm or correct before proceeding.
-2. Once confirmed, **invoke `planner`**. Present the plan and wait for my approval.
-3. Once approved, **invoke `implementer`**. It will code the change, self-verify, and commit to a `-wip` branch. Do not push.
-4. When the implementer reports done, **invoke `uat-tester`** with the `-wip` branch name plus the confirmed change request and approved plan.
-5. After UAT passes (or with explicit go-ahead on PASS-WITH-NOTES), **invoke `security-tester`**.
-6. End with a short summary: `-wip` branch name, UAT result, security findings by severity, and the recommended next step (e.g. open PR, fix blockers, request user review).
+Then:
 
-Rules:
-- Do not skip steps.
-- Do not invoke a later step until the prior step is approved or passes.
-- If a step fails or surfaces blockers, return to the appropriate earlier step (usually the implementer on the same `-wip` branch) rather than continuing.
-- Never push or open a PR without my explicit instruction.
+1. Pick the next available task id by scanning `.claude/sdlc/tasks/`. Use the next `task-NN` integer.
+2. Initialize the task: `.claude/sdlc/task.py init --task-id <id> --description "<the change request above>"`.
+3. Enter the orchestrator loop. The first step is always **analyst** with kind `confirm-intent`. Spawn a herdr pane for it, dispatch via `/role`, wait, surface the resulting checklist to the user for confirmation.
+4. Continue per the routing rules in `.claude/sdlc/README.md` until the security-tester reports `pass` (or the user accepts a `partial`).
+
+Hard rules (reminders from the orchestrator contract):
+
+- You never write code or edit the state file directly.
+- You never invoke role agents in your own session — they run in their own herdr panes.
+- You always surface the analyst checklist and the plan to the user for confirmation before proceeding past those gates.
+- You stop the loop after 3 consecutive failures on the same step and surface to the user.
+- You never push or open a PR without explicit user instruction.

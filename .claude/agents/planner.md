@@ -70,4 +70,6 @@ A short checklist the implementer can tick off.
 
 End with one line:
 
-> Awaiting plan approval. Once approved, hand off to the **implementer** agent.
+> Awaiting plan approval.
+
+The orchestrator routes based on your output's frontmatter once the user approves.

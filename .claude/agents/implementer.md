@@ -1,6 +1,6 @@
 ---
 name: implementer
-description: Use AFTER a plan is approved by the user. Implements the planned change end-to-end — edits code following the plan, runs the app, verifies the change works (Playwright MCP for UI, curl for API), then commits to a branch suffixed with `-wip`. Does NOT push, merge, or open PRs without explicit instruction. Returns a summary of files touched, verification output, and the `-wip` branch name. After this, hand off to the **uat-tester** agent. Examples — user says "implement the plan"; user approves a plan and says "go".
+description: Use AFTER a plan is approved by the user. Implements the planned change end-to-end — edits code following the plan, runs the app, verifies the change works (Playwright MCP for UI, curl for API), then commits to a branch suffixed with `-wip`. Does NOT push, merge, or open PRs without explicit instruction. Returns a summary of files touched, verification output, and the `-wip` branch name. The orchestrator routes the next step based on the output frontmatter. Examples — user says "implement the plan"; user approves a plan and says "go".
 model: sonnet
 tools: Read, Edit, Write, Bash, Grep, Glob, NotebookEdit
 ---
@@ -78,4 +78,4 @@ Anything you did differently from the plan, and why. If none, say "none."
 Anything intentionally left for follow-up (e.g. tests deferred, edge cases the plan flagged for later).
 
 ### Next step
-> Ready for UAT. Hand off to the **uat-tester** agent on branch `<branch-name>-wip`.
+> Step complete. Branch `<branch-name>-wip` ready. Orchestrator will route based on the output frontmatter.

@@ -1,99 +1,32 @@
-# SDLC sub agents — drafts
+# SDLC role agents
 
-A set of Claude Code sub agents that cover the development lifecycle from understanding the user's request through security review of the finished change. **These are drafts** — feedback welcome before they're adopted.
+Role definitions for the multi-agent SDLC workflow. Each file defines one role's identity, behavior, and output shape. The workflow that ties them together — state file, mutex, routing — lives in **[`.claude/sdlc/README.md`](../sdlc/README.md)**.
 
-## The flow
+| File | Role | Model | Writes? |
+|---|---|---|---|
+| [`change-request-analyst.md`](./change-request-analyst.md) | Confirms user intent with a 10–20 bullet "my understanding" checklist | opus | No |
+| [`planner.md`](./planner.md) | Codebase analysis + ordered implementation plan | opus | No |
+| [`implementer.md`](./implementer.md) | Writes the code, self-verifies, commits to `<name>-wip` (no push) | sonnet | **Yes** |
+| [`uat-tester.md`](./uat-tester.md) | Connects to user's Chrome via CDP, walks every acceptance criterion | sonnet | No |
+| [`security-tester.md`](./security-tester.md) | OWASP-aligned static + dynamic security review | opus | No |
+| [`orchestrator.md`](./orchestrator.md) | Owns all routing. The user's main Claude session adopts this role on `/sdlc`. | opus | No |
 
-```
-  user request
-       │
-       ▼
-┌──────────────────────────┐
-│ 1. change-request-analyst│   confirms understanding (10–20 bullet checklist)
-└──────────────────────────┘
-       │  user confirms / corrects
-       ▼
-┌──────────────────────────┐
-│ 2. planner               │   read-only; produces an implementation plan
-└──────────────────────────┘
-       │  user approves
-       ▼
-┌──────────────────────────┐
-│ 3. implementer           │   writes code, self-verifies, commits to `<name>-wip`
-└──────────────────────────┘
-       │  hands off branch
-       ▼
-┌──────────────────────────┐
-│ 4. uat-tester            │   drives user's Chrome (CDP), checks vs. request + plan
-└──────────────────────────┘
-       │  pass
-       ▼
-┌──────────────────────────┐
-│ 5. security-tester       │   OWASP-aligned review (static + dynamic)
-└──────────────────────────┘
-       │
-       ▼
-  branch ready for human review / PR
-```
+## How they're used
 
-Orchestration is done by the main Claude — it picks the right agent based on where the work is in the flow. Sub agents do not invoke each other directly; they finish their job and recommend the next handoff.
+Roles are dispatched as **sibling Claude instances in herdr panes**, not as in-process sub-agents. The orchestrator (the user's main session) spawns a pane per role, sends `/role <name> <task-id> <kind>` to that pane, and waits for the role to:
 
-## The agents
+1. Read its own role file (one of the files in this directory)
+2. Read [`.claude/sdlc/README.md`](../sdlc/README.md) for the workflow contract
+3. Call `.claude/sdlc/task.py step-start`
+4. Do its role's work
+5. Write its output markdown (with YAML frontmatter) under `.claude/sdlc/tasks/<task-id>/`
+6. Call `.claude/sdlc/task.py step-complete`
 
-| # | Agent | Phase | Model | Writes? | Returns |
-|---|---|---|---|---|---|
-| 1 | `change-request-analyst` | Pre-plan | opus | No | 10–20 bullet "my understanding" + open questions + out-of-scope |
-| 2 | `planner` | Plan | opus | No | Goal, approach, critical files, ordered change plan, test strategy, risks |
-| 3 | `implementer` | Build | sonnet | **Yes** (code + commits to `-wip` branch; no push) | Branch name, files changed, verification output |
-| 4 | `uat-tester` | Acceptance | sonnet | No | Pass/fail per acceptance criterion, edge-case findings, gaps vs. plan |
-| 5 | `security-tester` | Security | opus | No | OWASP-aligned findings with severity, evidence, fix recommendations |
+Roles do not route. Roles do not hand off. Roles do not fix issues outside their scope. They only report outcomes. The orchestrator routes based on each output's YAML frontmatter.
 
-Only the implementer writes to the codebase. The implementer also commits — but only to a branch suffixed with `-wip`, and **never pushes**. Pushing and PR creation stay with the human (or with main Claude on explicit user instruction).
+## Adding a role
 
-## Why each agent exists
-
-- **change-request-analyst** — the cheapest bug to fix is one you catch before any planning starts. This agent forces an explicit "did we understand you?" gate, modeled on how a good senior engineer mirrors back a request before estimating it.
-- **planner** — separates *what* from *how*. Produces an artifact the user (and the implementer agent) can both review. Mirrors Claude Code's plan mode.
-- **implementer** — does the work, but also self-verifies. A human dev runs their code before sending to QA; this agent does too (Playwright MCP for UI, curl for APIs). The `-wip` branch convention keeps integration safe.
-- **uat-tester** — the implementer's self-check is a smoke test. UAT walks every acceptance criterion against the real running app, in the user's real Chrome, and compares against both the request and the plan. Catches "built the wrong thing."
-- **security-tester** — OWASP-aligned, two-pass (static read of the diff + dynamic probes). Run after UAT, or in parallel for security-sensitive changes.
-
-## When to invoke each (triggers for main Claude)
-
-- New feature, bug fix, or refactor request from the user → start with **change-request-analyst**.
-- User says "go ahead" / "plan it" after analyst checklist confirmed → **planner**.
-- Already-scoped task with clear AC → can go straight to **planner**.
-- User approves a plan → **implementer**.
-- Implementer reports done on a `-wip` branch → **uat-tester**.
-- UAT passes, or the change touches auth / payments / user data / file upload / third-party calls → **security-tester**.
-- UAT or security finds blockers → back to **implementer** on the same `-wip` branch.
-
-## Requirements
-
-- **Playwright MCP server** must be available for the implementer's UI smoke test, the uat-tester, and the security-tester's dynamic probes. If the MCP server isn't wired up, the implementer falls back to API curl checks; uat-tester and security-tester will say so explicitly rather than fake results.
-- **Chrome with CDP** for uat-tester: launch with `--remote-debugging-port=9222` (or set the port the Playwright MCP server expects). The uat-tester connects to your existing browser; it does not launch a fresh one. This means it will see your real profile and logged-in sessions — useful, but be aware.
-- **A running app** (local dev or staging) for any of the verifying agents to actually verify against.
-
-## Model selection rationale
-
-- `opus` for agents that need nuance — understanding fuzzy intent (analyst), making design tradeoffs (planner), and reasoning about security (security-tester).
-- `sonnet` for agents that execute structured work — writing code to a spec (implementer), driving a browser through a checklist (uat-tester).
-
-Adjust to taste. The model field is set per agent in the frontmatter.
-
-## Extending
-
-To add an agent (e.g. `release-notes-writer`, `migration-reviewer`, `perf-tester`):
-
-1. Add a markdown file in this directory with YAML frontmatter (`name`, `description`, `model`, `tools`).
-2. Make the `description` action-oriented and trigger-rich — that's what the main Claude uses to decide when to invoke.
-3. Be explicit in the system prompt about what the agent **does not** do, especially around writes/commits/pushes.
-4. Update the flow diagram and table above.
-
-## Status
-
-Drafts. Not yet adopted. Open questions before adoption:
-
-- Should there be a sixth agent that handles release notes + PR description, triggered after security-tester passes?
-- Should the implementer's "self-verification" step be split into its own agent for clearer separation of concerns?
-- For purely backend changes with no UI, is the uat-tester still the right name, or should it split into `api-uat-tester` and `ui-uat-tester`?
+1. Add a new file here following the same shape: frontmatter (`name`, `description`, `model`, `tools`) + role body describing what the agent does, doesn't do, and produces.
+2. Add the role to the table above.
+3. If routing semantics change, update the routing rules in [`.claude/sdlc/README.md`](../sdlc/README.md).
+4. If the orchestrator needs new judgment heuristics, update [`orchestrator.md`](./orchestrator.md).

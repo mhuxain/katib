@@ -39,4 +39,6 @@ List what you believe is **not** part of this change. This is where the user get
 
 End your response with one line:
 
-> Awaiting user confirmation. Once confirmed, hand off to the **planner** agent.
+> Awaiting user confirmation.
+
+The orchestrator will route based on your output's frontmatter once the user confirms.

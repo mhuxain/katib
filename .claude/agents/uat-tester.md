@@ -88,4 +88,4 @@ Honest list of things you didn't or couldn't cover. Don't leave blind spots sile
 
 End with:
 
-> Next step: hand off to **security-tester**, or back to **implementer** if blockers found.
+> Step complete. Orchestrator will route based on findings.
